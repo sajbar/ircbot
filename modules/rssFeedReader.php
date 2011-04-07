@@ -4,7 +4,7 @@ class rssFeedReader
 {
 
     private $_feeds = array ();
-    private $_headline;
+    private $_headlines;
 
     public function __construct()
     {
@@ -14,23 +14,15 @@ class rssFeedReader
         $this->_feeds['eb'] = array (
             'url' => 'http://ekstrabladet.dk/rss2/?mode=normal'
         );
-        $this->_run();
+        $this->_getNewEntries();
     }
 
-    protected function _run()
-    {
-        while (true) {
-            $this->_getNewEntries();
-            // $this->_getLastEntry('eb');
-            sleep(120);
-        }
-    }
 
     protected function _getNewEntries()
     {
         $doc = new DOMDocument();
         foreach ($this->_feeds as $shortName => $array) {
-            if (!is_array($this->_headlines[$shortName])) {
+            if (!isset($this->_headlines[$shortName])) {
                 $this->_headlines[$shortName] = array ();
             }
             $xml = file_get_contents($array['url']);
@@ -57,7 +49,8 @@ class rssFeedReader
                     if (!array_key_exists($headline['guid'], $this->_headlines[$shortName])) {
 
                         $this->_headlines[$shortName][$headline['guid']] = $headline;
-                        echo(date('d-m-Y H:i:s') . " " . $shortName . ": " . $headline['title'] . "\n");
+                       // return(date('d-m-Y H:i:s') . " " . $shortName . ": " . $headline['title'] . "\n");
+                       // file_put_contents('test.txt', date('d-m-Y H:i:s') . " " . $shortName . ": " . $headline['title'] . "\n");
                     }
                     
                 }
@@ -65,12 +58,12 @@ class rssFeedReader
         }
     }
 
-    protected function _getLastEntry($shortName)
+    public function getLastEntry($shortName)
     {
         $shortName = strtolower($shortName);
         $headline = reset($this->_headlines[$shortName]);
 
-        echo($shortName . ": " . $headline['title'] . "\n");
+        return($shortName . ": " . $headline['title'] . "\n");
     }
 
 }
