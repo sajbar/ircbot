@@ -4,7 +4,7 @@ class rssFeedReader
 {
 
     private $_feeds = array ();
-    private $_headline;
+    private $_headlines;
 
     public function __construct()
     {
@@ -14,63 +14,62 @@ class rssFeedReader
         $this->_feeds['eb'] = array (
             'url' => 'http://ekstrabladet.dk/rss2/?mode=normal'
         );
-        $this->_run();
+        $this->_getNewEntriesForAllSites();
     }
 
-    protected function _run()
+    protected function _getNewEntriesForAllSites()
     {
-        while (true) {
-            $this->_getNewEntries();
-            // $this->_getLastEntry('eb');
-            sleep(120);
-        }
-    }
-
-    protected function _getNewEntries()
-    {
+        $newHeadlines = array();
         $doc = new DOMDocument();
         foreach ($this->_feeds as $shortName => $array) {
-            if (!is_array($this->_headlines[$shortName])) {
+            if (!isset($this->_headlines[$shortName])) {
                 $this->_headlines[$shortName] = array ();
             }
-            $xml = file_get_contents($array['url']);
-            if ($doc->loadXML($xml)) {
-                $items = $doc->getElementsByTagName('item');
-                $headlines = array ();
-
-                foreach ($items as $item) {
-                    $headline = array ();
-
-                    if ($item->childNodes->length) {
-                        foreach ($item->childNodes as $i) {
-                            if ($i->nodeName == 'guid') {
-                                $headline[$i->nodeName] = $i->nodeValue;
-                            } else if ($i->nodeName == 'title') {
-                                $headline[$i->nodeName] = $i->nodeValue;
-                            }else if ($i->nodeName == 'link') {
-                                $headline[$i->nodeName] = $i->nodeValue;
-                            }else if ($i->nodeName == 'pubDate') {
-                                $headline[$i->nodeName] = $i->nodeValue;
-                            }
-                        }
-                    }
-                    if (!array_key_exists($headline['guid'], $this->_headlines[$shortName])) {
-
-                        $this->_headlines[$shortName][$headline['guid']] = $headline;
-                        echo(date('d-m-Y H:i:s') . " " . $shortName . ": " . $headline['title'] . "\n");
-                    }
-                    
-                }
-            }
+            $newHeadlines = array_merge($newHeadlines, $this->_getSpecificNewEntries($array['url']));
         }
     }
 
-    protected function _getLastEntry($shortName)
+    public function getLastEntry($shortName)
     {
         $shortName = strtolower($shortName);
         $headline = reset($this->_headlines[$shortName]);
 
-        echo($shortName . ": " . $headline['title'] . "\n");
+        return($shortName . ": " . $headline['title'] . "\n");
+    }
+
+    protected function _getSpecificNewEntries($url)
+    {
+        $newHeadlines = array ();
+        $xml = file_get_contents($url);
+        if ($doc->loadXML($xml)) {
+            $items = $doc->getElementsByTagName('item');
+            $headlines = array ();
+
+            foreach ($items as $item) {
+                $headline = array ();
+
+                if ($item->childNodes->length) {
+                    foreach ($item->childNodes as $i) {
+                        if ($i->nodeName == 'guid') {
+                            $headline[$i->nodeName] = $i->nodeValue;
+                        } else if ($i->nodeName == 'title') {
+                            $headline[$i->nodeName] = $i->nodeValue;
+                        } else if ($i->nodeName == 'link') {
+                            $headline[$i->nodeName] = $i->nodeValue;
+                        } else if ($i->nodeName == 'pubDate') {
+                            $headline[$i->nodeName] = $i->nodeValue;
+                        }
+                    }
+                }
+                if (!array_key_exists($headline['guid'], $this->_headlines[$shortName])) {
+
+                    $this->_headlines[$shortName][$headline['guid']] = $headline;
+                    $newHeadlines[] = date('d-m-Y H:i:s') . " " . $shortName . ": " . $headline['title'];
+                    // file_put_contents('test.txt', date('d-m-Y H:i:s') . " " . $shortName . ": " . $headline['title'] . "\n");
+                }
+            }
+            return $newHeadlines;
+        }
     }
 
 }

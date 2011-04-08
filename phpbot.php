@@ -14,6 +14,8 @@ class phpBot
     public $quit;
     private $serverHost;
     private $moduledir = "./modules/";
+    private $_process;
+    private $_pipes;
 
     public function connect()
     {
@@ -29,41 +31,46 @@ class phpBot
             fwrite($this->fp, "NICK " . $this->nick . "\r\n");
 
             fwrite($this->fp, "USER " . $this->ident . " " . $this->host . " bla :" . $this->realname . "\r\n");
+
             $this->parseMessages();
         }
     }
 
     private function parseMessages()
     {
-        while (!feof($this->fp)) {
+        while (true) {
+            if (!feof($this->fp)) {
 
-            $this->line = trim(fgets($this->fp, 128));
-            if (preg_match("/:([\S]+) 002 ([\S]+) :Your host is ([\S]+), running version ([\S]+)$/i", $this->line, $match)) {
-                $this->serverHost = $match[3];
-            }
-            if (preg_match("/\001([\S]+)\001$/i", $this->line, $match)) {
-                $userinfo = $this->getUserinfo();
-                $this->parseCTCP($match[1], $userinfo['nick']);
-            } elseif (strpos($this->line, "PING") !== FALSE) {
-                $this->parsePing();
-            } elseif (strpos($this->line, "PRIVMSG") !== FALSE) {
-                $this->parsePrivMsg();
-            } elseif (strpos($this->line, "MODE") !== FALSE) {
-                $this->parseMode();
-            } elseif (strpos($this->line, "KICK") !== FALSE) {
-                $this->join();
-            } elseif (strpos($this->line, "PART") !== FALSE) {
-                $this->parsePart();
-            } elseif (strpos($this->line, "INVITE") !== FALSE) {
-                $this->parseInvite();
-            } elseif (strpos($this->line, "JOIN") !== FALSE) {
-                $this->parseJoins();
+                $this->line = trim(fgets($this->fp, 128));
+                if (preg_match("/:([\S]+) 002 ([\S]+) :Your host is ([\S]+), running version ([\S]+)$/i", $this->line, $match)) {
+                    $this->serverHost = $match[3];
+                }
+                if (preg_match("/\001([\S]+)\001$/i", $this->line, $match)) {
+                    $userinfo = $this->getUserinfo();
+                    $this->parseCTCP($match[1], $userinfo['nick']);
+                } elseif (strpos($this->line, "PING") !== FALSE) {
+                    $this->parsePing();
+                } elseif (strpos($this->line, "PRIVMSG") !== FALSE) {
+                    $this->parsePrivMsg();
+                } elseif (strpos($this->line, "MODE") !== FALSE) {
+                    $this->parseMode();
+                } elseif (strpos($this->line, "KICK") !== FALSE) {
+                    $this->join();
+                } elseif (strpos($this->line, "PART") !== FALSE) {
+                    $this->parsePart();
+                } elseif (strpos($this->line, "INVITE") !== FALSE) {
+                    $this->parseInvite();
+                } elseif (strpos($this->line, "JOIN") !== FALSE) {
+                    $this->parseJoins();
+                } else {
+                    echo date("d-m-Y H:i:s") . "  " . $this->line . "\n";
+                }
             } else {
-                echo date("d-m-Y H:i:s") . "  " .$this->line . "\n";
+                fclose($this->fp);
+                break;
             }
-        }
 
-        fclose($this->fp);
+        }
     }
 
     private function join()
