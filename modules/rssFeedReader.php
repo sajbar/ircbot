@@ -14,12 +14,19 @@ class rssFeedReader
         $this->_feeds['eb'] = array (
             'url' => 'http://ekstrabladet.dk/rss2/?mode=normal'
         );
+
         $this->_getNewEntriesForAllSites();
     }
 
     protected function _getNewEntriesForAllSites()
     {
-        $newHeadlines = array();
+
+        $this->getNewEntries();
+    }
+
+    public function getNewEntries()
+    {
+        $newHeadlines = array ();
         $doc = new DOMDocument();
         foreach ($this->_feeds as $shortName => $array) {
             if (!isset($this->_headlines[$shortName])) {
@@ -62,6 +69,7 @@ class rssFeedReader
                     }
                 }
                 if (!array_key_exists($headline['guid'], $this->_headlines[$shortName])) {
+
 
                     $this->_headlines[$shortName][$headline['guid']] = $headline;
                     $newHeadlines[] = date('d-m-Y H:i:s') . " " . $shortName . ": " . $headline['title'];
