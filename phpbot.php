@@ -1,7 +1,6 @@
 <?
 
-class phpBot
-{
+class phpBot {
 
     private $_host = "bigchief.hemligt.net";
     private $port = 6667;
@@ -9,22 +8,21 @@ class phpBot
     private $_ident = "MyBotz0r";
     private $_chan = "#news";
     private $_realname = "MyBot";
+    private $_connected = false;
     private $_fp;
     private $_line;
     public $quit;
     private $_serverHost;
     private $_moduleDir = "./modules/";
     private $_rssFeedReader;
-    
-    public function  __construct() {
-       include($this->_moduleDir."rssFeedReader.php");
 
-       $this->_rssFeedReader = new rssFeedReader();
+    public function __construct() {
+        include($this->_moduleDir . "rssFeedReader.php");
+
+        $this->_rssFeedReader = new rssFeedReader();
     }
 
-
-    public function connect()
-    {
+    public function connect() {
 
         // open a socket connection to the IRC server
         $this->_fp = fsockopen($this->_host, $this->port, $erno, $errstr, 30);
@@ -39,12 +37,10 @@ class phpBot
             fwrite($this->_fp, "USER " . $this->_ident . " " . $this->_host . " bla :" . $this->_realname . "\r\n");
 
             $this->_parseMessages();
-
         }
     }
 
-    private function _parseMessages()
-    {
+    private function _parseMessages() {
         while (true) {
             if (!feof($this->_fp)) {
 
@@ -76,17 +72,20 @@ class phpBot
                 fclose($this->_fp);
                 break;
             }
-
+            if ($this-> _connected) {
+                foreach($this->_rssFeedReader->getNewEntries() as $msg) {
+                     //$this->_sendMessage($msg, $this->_chan);
+                     //sleep(1);
+                }
+            }
         }
     }
 
-    private function _join()
-    {
+    private function _join() {
         fwrite($this->_fp, "JOIN " . $this->_chan . "\r\n");
     }
 
-    private function _parsePing()
-    {
+    private function _parsePing() {
         if (preg_match("/PING :([\S]+)$/", $this->_line, $match)) {
             fwrite($this->_fp, "PONG " . $match[1] . "\r\n");
             echo(date("d-m-Y H:i:s") . " sent PONG\n");
@@ -102,28 +101,27 @@ class phpBot
         }
     }
 
-    private function _parseKick()
-    {
+    private function _parseKick() {
         if (strpos($this->_line, $this->_nick) !== FALSE) {
             $this->_join();
         }
     }
 
-    private function _parseInvite()
-    {
+    private function _parseInvite() {
         preg_match("/INVITE ([\S]+) :([\S]+)$/i", $this->_line, $match);
         $this->_joinChannel($match[2]);
     }
 
-    private function _parseJoins()
-    {
+    private function _parseJoins() {
         preg_match("/JOIN :#([\S\s]+)$/i", $this->_line, $match);
         $userInfo = $this->_getUserinfo();
         $channel = "#" . $match[1];
+        if ($channel == $this->_chan && false == $this_ > _connected) {
+            $this->_connected = true;
+        }
     }
 
-    private function _parseMode()
-    {
+    private function _parseMode() {
         echo($this->_line . "\n");
         //:Daniel!~sajbar@hemligt-63C3C317.hemligt.net MODE #news +o MyBotZ0r
         preg_match("/MODE #([\S]+) ([\S]+) ([\S]+)$/i", $this->_line, $match);
@@ -133,21 +131,18 @@ class phpBot
         $target = $match[3];
     }
 
-    private function _parsePart()
-    {
+    private function _parsePart() {
         echo($this->_line . "\n");
         preg_match("/PART #([\S]+)([\S\s]*)$/i", $this->_line, $match);
         $userInfo = $this->_getUserinfo();
         $channel = "#" . $match[1];
     }
 
-    private function _joinChannel($channel)
-    {
+    private function _joinChannel($channel) {
         fwrite($this->_fp, "JOIN " . $channel . "\r\n");
     }
 
-    private function _parsePrivMsg()
-    {
+    private function _parsePrivMsg() {
         $userInfo = $this->_getUserInfo();
         preg_match("/PRIVMSG ([\S]+) :([\S\s]+)$/i", $this->_line, $match);
 
@@ -159,8 +154,7 @@ class phpBot
         }
     }
 
-    private function _parseChannelMessage($nick, $channel, $msg)
-    {
+    private function _parseChannelMessage($nick, $channel, $msg) {
         if (preg_match("/^quit([\S\s]*)$/i", $msg, $match)) {
             $quit = "QUIT :" . trim($match[1]) . "\r\n";
             $this->quit = true;
@@ -175,17 +169,17 @@ class phpBot
             if (trim($match[1]) != "") {
                 $this->_setMode("+o", $channel, trim($match[1]));
             }
-        }
+        }elseif (preg_match("/^!n([\S\s]*)$/i", $msg, $match)) {
+            $this->_sendMessage($this->_rssFeedReader->getLastEntry($match[1]), $channel);
+        } 
     }
 
-    private function _sendMessage($msg, $target)
-    {
+    private function _sendMessage($msg, $target) {
         $msg = "PRIVMSG " . $target . " :" . trim($msg) . "\r\n";
         fwrite($this->_fp, $msg);
     }
 
-    private function _parseCTCP($ctcp, $nick)
-    {
+    private function _parseCTCP($ctcp, $nick) {
         if ($ctcp == "VERSION") {
             fwrite($this->_fp, "NOTICE " . $nick . " :\001VERSION 1.0 Nanoy's bot\001\r\n");
         } else {
@@ -193,21 +187,18 @@ class phpBot
         }
     }
 
-    private function _sendCTCPresponse($nick, $type, $message)
-    {
+    private function _sendCTCPresponse($nick, $type, $message) {
         echo("NOTICE " . $nick . " :\001" . $type . " " . $message . "\001\r\n");
         fwrite($this->_fp, "NOTICE " . $nick . " :\001" . $type . " " . $message . "\001\r\n");
     }
 
-    private function _parsePrivateMessage($nick, $msg)
-    {
+    private function _parsePrivateMessage($nick, $msg) {
         if (strpos($msg, "\001VERSION\001") !== FALSE) {
             fwrite($this->_fp, "NOTICE " . $nick . " :\001VERSION 1.0 Nanoy's bot\001\r\n");
         }
     }
 
-    private function _getUserinfo()
-    {
+    private function _getUserinfo() {
         preg_match("/^:([\S]+)!([\S]+)@([\S]+) ([\S]+) :([\S\s]+)$/i", $this->_line, $match);
         $userInfo['nick'] = $match[1];
         $userInfo['ident'] = $match[2];
@@ -217,8 +208,7 @@ class phpBot
         return $userInfo;
     }
 
-    private function _setMode($mode, $channel, $param = null)
-    {
+    private function _setMode($mode, $channel, $param = null) {
         if (is_null($param)) {
             $str = "MODE " . $channel . "  " . $mode;
         } else {
@@ -228,8 +218,7 @@ class phpBot
         fwrite($this->_fp, $str . "\r\n");
     }
 
-    public function loadModules()
-    {
+    public function loadModules() {
         echo("hello");
         if (is_dir($this->moduledir)) {
             $dh = opendir($this->moduledir);
