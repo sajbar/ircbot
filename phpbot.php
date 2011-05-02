@@ -13,9 +13,15 @@ class phpBot
     private $line;
     public $quit;
     private $serverHost;
-    private $moduledir = "./modules/";
-    private $_process;
-    private $_pipes;
+    private $_moduleDir = "./modules/";
+    private $_rssFeedReader;
+    
+    public function  __construct() {
+       include($this->_moduleDir."rssFeedReader.php");
+
+       $this->_rssFeedReader = new rssFeedReader();
+    }
+
 
     public function connect()
     {
@@ -32,11 +38,12 @@ class phpBot
 
             fwrite($this->fp, "USER " . $this->ident . " " . $this->host . " bla :" . $this->realname . "\r\n");
 
-            $this->parseMessages();
+            $this->_parseMessages();
+
         }
     }
 
-    private function parseMessages()
+    private function _parseMessages()
     {
         while (true) {
             if (!feof($this->fp)) {
