@@ -43,6 +43,11 @@ class phpBot {
 
     private function _parseMessages() {
         while (true) {
+            if(!$this->_fp) {
+                fclose($this->_fp);
+                $this->connect();
+                $this->_connected = false;
+            }
             if (!feof($this->_fp)) {
 
                 $this->_line = trim(fgets($this->_fp, 128));
@@ -71,7 +76,8 @@ class phpBot {
                 }
             } else {
                 fclose($this->_fp);
-                break;
+                $this->connect();
+                $this->_connected = false;
             }
             if ($this-> _connected) {
                 foreach($this->_rssFeedReader->getNewEntries() as $msg) {

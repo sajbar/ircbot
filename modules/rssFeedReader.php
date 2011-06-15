@@ -10,7 +10,7 @@ class rssFeedReader
     public function __construct()
     {
         $this->_feeds['newz'] = array (
-            'url' => 'http://newz.dk/rss/news/nopicture',
+            'url' => 'http://feeds.newzmedia.dk/c/32893/f/582670/index.rss',
             'lastCheck' => 0
         );
         $this->_feeds['eb'] = array (
@@ -65,8 +65,6 @@ class rssFeedReader
             'url' => 'http://macnation.newz.dk/rss',
             'lastCheck' => 0
         );
-
-        //$this->_getNewEntriesForAllSites();
     }
 
     protected function _getNewEntriesForAllSites()
@@ -85,9 +83,9 @@ class rssFeedReader
                     $this->_headlines[$shortName] = array ();
                 }
                 $newHeadlines = array_merge($newHeadlines, $this->_getSpecificNewEntries($shortName));
-                echo("updated for " .$shortName . "\n");
+                echo("updated for " . $shortName . "\n");
             } else {
-                echo("no go\n");
+                echo("no go for " . $shortName . "\n");
             }
         }
         if ($this->_firstRun) {
@@ -103,9 +101,16 @@ class rssFeedReader
         $shortName = trim(strtolower($shortName));
 
         $this->_getSpecificNewEntries($shortName);
-        $headline = reset($this->_headlines[$shortName]);
-
-        return "(" . $shortName . ") " . date("H:i:s", strtotime($headline['pubDate'])) . " " .$headline['title'] . " " .$this->_getTinyUrl($headline['link']) ;
+        
+        $headline1 = reset($this->_headlines[$shortName]);
+        $headline2 = end($this->_headlines[$shortName]);
+        
+        if(strtotime($headline1['pubDate']) > strtotime($headline2['pubDate']) ) {
+            $headline = $headline1;
+        } else {
+            $headline = $headline2;
+         }
+        return "(" . $shortName . ") " . date("H:i:s", strtotime($headline['pubDate'])) . " " . $headline['title'] . " " . $this->_getTinyUrl($headline['link']);
     }
 
     protected function _getSpecificNewEntries($shortName)
@@ -127,6 +132,10 @@ class rssFeedReader
                             if ($i->nodeName == 'guid') {
                                 $headline[$i->nodeName] = $i->nodeValue;
                             } else if ($i->nodeName == 'title') {
+                                $title = $i->nodeValue;
+                                if($this->_is_utf8($title)) {
+                                    $title = utf8_decode($title);
+                                }
                                 $headline[$i->nodeName] = $i->nodeValue;
                             } else if ($i->nodeName == 'link') {
                                 $headline[$i->nodeName] = $i->nodeValue;
@@ -138,7 +147,7 @@ class rssFeedReader
                     if (!array_key_exists($headline['guid'], $this->_headlines[$shortName])) {
 
                         $this->_headlines[$shortName][$headline['guid']] = $headline;
-                        if (! $this->_firstRun) {
+                        if (!$this->_firstRun) {
                             $newHeadlines[] = "(" . $shortName . ") " . date("H:i:s", strtotime($headline['pubDate'])) . " " . $headline['title'] . " " . $this->_getTinyUrl($headline['link']);
                             file_put_contents('test.txt', "(" . $shortName . ") " . date("H:i:s", strtotime($headline['pubDate'])) . " " . $headline['title'] . " " . $this->_getTinyUrl($headline['link']) . "\n", FILE_APPEND);
                         }
@@ -149,6 +158,43 @@ class rssFeedReader
                 return $newHeadlines;
             }
         }
+    }
+
+    protected function _is_utf8($str)
+    {
+        $c = 0;
+        $b = 0;
+        $bits = 0;
+        $len = strlen($str);
+        for ($i = 0; $i < $len; $i++) {
+            $c = ord($str[$i]);
+            if ($c > 128) {
+                if (($c >= 254))
+                    return false;
+                elseif ($c >= 252)
+                    $bits = 6;
+                elseif ($c >= 248)
+                    $bits = 5;
+                elseif ($c >= 240)
+                    $bits = 4;
+                elseif ($c >= 224)
+                    $bits = 3;
+                elseif ($c >= 192)
+                    $bits = 2;
+                else
+                    return false;
+                if (($i + $bits) > $len)
+                    return false;
+                while ($bits > 1) {
+                    $i++;
+                    $b = ord($str[$i]);
+                    if ($b < 128 || $b > 191)
+                        return false;
+                    $bits--;
+                }
+            }
+        }
+        return true;
     }
 
     protected function _getTinyUrl($url)
