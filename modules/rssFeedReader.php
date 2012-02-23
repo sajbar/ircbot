@@ -6,6 +6,7 @@ class rssFeedReader
     private $_feeds = array ();
     private $_headlines = array ();
     protected $_firstRun = true;
+    protected $_chan = "#info";
 
     public function __construct()
     {
@@ -82,10 +83,13 @@ class rssFeedReader
                 if (!isset($this->_headlines[$shortName])) {
                     $this->_headlines[$shortName] = array ();
                 }
-                $newHeadlines = array_merge($newHeadlines, $this->_getSpecificNewEntries($shortName));
-                echo("updated for " . $shortName . "\n");
+                $newEntries = $this->_getSpecificNewEntries($shortName);
+                if(is_array($newEntries)) {
+                    $newHeadlines = array_merge($newHeadlines, $newEntries);
+                }
+                //echo("updated for " . $shortName . "\n");
             } else {
-                echo("no go for " . $shortName . "\n");
+                //echo("no go for " . $shortName . "\n");
             }
         }
         if ($this->_firstRun) {
@@ -119,8 +123,12 @@ class rssFeedReader
             $url = $this->_feeds[$shortName]['url'];
             $doc = new DOMDocument();
             $newHeadlines = array ();
-            $xml = file_get_contents($url);
-            if ($doc->loadXML($xml)) {
+            $xml = @file_get_contents($url);
+            if(!xml || $xml == '') {
+                $this->_feeds[$shortName]['lastCheck'] = (time() + 120);
+                return;
+            }
+            if (@$doc->loadXML($xml)) {
                 $items = $doc->getElementsByTagName('item');
                 $headlines = array ();
 
@@ -132,7 +140,7 @@ class rssFeedReader
                             if ($i->nodeName == 'guid') {
                                 $headline[$i->nodeName] = $i->nodeValue;
                             } else if ($i->nodeName == 'title') {
-                                $title = $i->nodeValue;
+                                $title = html_entity_decode($i->nodeValue);
                                 if($this->_is_utf8($title)) {
                                     $title = utf8_decode($title);
                                 }
@@ -149,7 +157,7 @@ class rssFeedReader
                         $this->_headlines[$shortName][$headline['guid']] = $headline;
                         if (!$this->_firstRun) {
                             $newHeadlines[] = "(" . $shortName . ") " . date("H:i:s", strtotime($headline['pubDate'])) . " " . $headline['title'] . " " . $this->_getTinyUrl($headline['link']);
-                            file_put_contents('test.txt', "(" . $shortName . ") " . date("H:i:s", strtotime($headline['pubDate'])) . " " . $headline['title'] . " " . $this->_getTinyUrl($headline['link']) . "\n", FILE_APPEND);
+                           // file_put_contents('test.txt', "(" . $shortName . ") " . date("H:i:s", strtotime($headline['pubDate'])) . " " . $headline['title'] . " " . $this->_getTinyUrl($headline['link']) . "\n", FILE_APPEND);
                         }
                     }
                 }
@@ -206,7 +214,16 @@ class rssFeedReader
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $timeout);
         $data = curl_exec($ch);
         curl_close($ch);
-        return $data;
+        
+        $pos = strpos($data, "http://");
+        if($pos === false) {
+            return $url;
+        } else {      
+            return trim($data);
+        }
     }
-
+    
+    public function getChan() {
+        return $this->_chan;
+    }
 }

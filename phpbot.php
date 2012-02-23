@@ -1,4 +1,4 @@
-<?
+<?php
 
 class phpBot {
 
@@ -6,7 +6,7 @@ class phpBot {
     private $port = 6667;
     private $_nick = "Infobot";
     private $_ident = "Infobot";
-    private $_chan = "#info";
+    private $_chans = array("#info","#church.of.dawn");
     private $_realname = "Infobot";
     private $_connected = false;
     private $_fp;
@@ -15,18 +15,20 @@ class phpBot {
     private $_serverHost;
     private $_moduleDir = "./modules/";
     private $_rssFeedReader;
-
+    private $_youtubeTitleFetcher;
+    
     public function __construct() {
         include($this->_moduleDir . "rssFeedReader.php");
-
+        include($this->_moduleDir . "youtubeTitleFetcher.php");
         $this->_rssFeedReader = new rssFeedReader();
+        $this->_youtubeTitleFetcher = new youtubeTitleFetcher();
     }
 
 
     public function connect() {
 
         // open a socket connection to the IRC server
-        $this->_fp = fsockopen($this->_host, $this->port, $erno, $errstr, 30);
+        $this->_fp = fsockopen($this->_host, $this->port, $erno, $errstr, 180);
 
         // print the error if there is no connection
         if (!$this->_fp) {
@@ -38,17 +40,21 @@ class phpBot {
             fwrite($this->_fp, "USER " . $this->_ident . " " . $this->_host . " bla :" . $this->_realname . "\r\n");
 
             $this->_parseMessages();
+            
         }
     }
 
     private function _parseMessages() {
         while (true) {
+        if($this->quit) {
+        exit;
+        } 
             if(!$this->_fp) {
-                fclose($this->_fp);
+                //fclose($this->_fp);
                 $this->connect();
                 $this->_connected = false;
             }
-            if (!feof($this->_fp)) {
+            if ($this->_fp && !feof($this->_fp)) {
 
                 $this->_line = trim(fgets($this->_fp, 128));
                 if (preg_match("/:([\S]+) 002 ([\S]+) :Your host is ([\S]+), running version ([\S]+)$/i", $this->_line, $match)) {
@@ -72,16 +78,16 @@ class phpBot {
                 } elseif (strpos($this->_line, "JOIN") !== FALSE) {
                     $this->_parseJoins();
                 } else {
-                    echo date("d-m-Y H:i:s") . "  " . $this->_line . "\n";
+                    //echo date("d-m-Y H:i:s") . "  " . $this->_line . "\n";
                 }
             } else {
-                fclose($this->_fp);
+                //fclose($this->_fp);
                 $this->connect();
                 $this->_connected = false;
             }
             if ($this-> _connected) {
                 foreach($this->_rssFeedReader->getNewEntries() as $msg) {
-                     $this->_sendMessage($msg, $this->_chan);
+                     $this->_sendMessage($msg, $this->_rssFeedReader->getChan());
                      sleep(1);
                 }
             }
@@ -89,22 +95,25 @@ class phpBot {
     }
 
     private function _join() {
-        fwrite($this->_fp, "JOIN " . $this->_chan . "\r\n");
+        foreach($this->_chans as $chan) {
+            fwrite($this->_fp, "JOIN " . $chan . "\r\n");
+            sleep(1);
+        }
     }
 
     private function _parsePing() {
         if (preg_match("/PING :([\S]+)$/", $this->_line, $match)) {
             fwrite($this->_fp, "PONG " . $match[1] . "\r\n");
-            echo(date("d-m-Y H:i:s") . " sent PONG\n");
+            //echo(date("d-m-Y H:i:s") . " sent PONG\n");
         } elseif ($this->_line == "PING :" . $this->_serverHost) {
             fwrite($this->_fp, "PONG \r\n");
-            echo("sent PONG\n");
+            //echo("sent PONG\n");
         } elseif (preg_match("/:([\S]+)!([\S]+)@([\S]+) PRIVMSG ([\S]+) :PING ([\d]+) ([\d]+)$/i", $this->_line, $match)) {
             $userInfo = $this->_getUserinfo();
             $response = time() . " " . $match[6];
             $this->_sendCTCPresponse($userInfo['nick'], PING, $response);
         } else {
-            echo($this->_line . "\n");
+            //echo($this->_line . "\n");
         }
     }
 
@@ -116,6 +125,7 @@ class phpBot {
 
     private function _parseInvite() {
         preg_match("/INVITE ([\S]+) :([\S]+)$/i", $this->_line, $match);
+        $this->_chans[] = $match[2];
         $this->_joinChannel($match[2]);
     }
 
@@ -123,13 +133,13 @@ class phpBot {
         preg_match("/JOIN :#([\S\s]+)$/i", $this->_line, $match);
         $userInfo = $this->_getUserinfo();
         $channel = "#" . $match[1];
-        if ($channel == $this->_chan && false == $this_ > _connected) {
+        if ($channel == $this->_chans[0] && false == $this_ > _connected) {
             $this->_connected = true;
         }
     }
 
     private function _parseMode() {
-        echo($this->_line . "\n");
+        //echo($this->_line . "\n");
         //:Daniel!~sajbar@hemligt-63C3C317.hemligt.net MODE #news +o MyBotZ0r
         preg_match("/MODE #([\S]+) ([\S]+) ([\S]+)$/i", $this->_line, $match);
         $userInfo = $this->_getUserinfo();
@@ -139,7 +149,7 @@ class phpBot {
     }
 
     private function _parsePart() {
-        echo($this->_line . "\n");
+        //echo($this->_line . "\n");
         preg_match("/PART #([\S]+)([\S\s]*)$/i", $this->_line, $match);
         $userInfo = $this->_getUserinfo();
         $channel = "#" . $match[1];
@@ -179,6 +189,15 @@ class phpBot {
         }elseif (preg_match("/^!n([\S\s]*)$/i", $msg, $match)) {
             $this->_sendMessage($this->_rssFeedReader->getLastEntry($match[1]), $channel);
         } 
+        if(false != $this->_youtubeTitleFetcher->getTitle($msg)) {
+            $this->_sendMessage($this->_youtubeTitleFetcher->getTitle($msg), $channel);
+        } else if (preg_match("/^leave([\S\s]*)$/i", $msg, $match)) {
+           fwrite($this->_fp, "PART " . $channel . "\r\n");
+           $chanKey = array_search($channel, $this->_chan);
+           if(!false !== $chanKey) {
+                unset($this->_chan[$chankey]);
+           }
+        } 
     }
 
     private function _sendMessage($msg, $target) {
@@ -190,12 +209,12 @@ class phpBot {
         if ($ctcp == "VERSION") {
             fwrite($this->_fp, "NOTICE " . $nick . " :\001VERSION 1.0 Nanoy's bot\001\r\n");
         } else {
-            echo($this->_line . "\n");
+            //echo($this->_line . "\n");
         }
     }
 
     private function _sendCTCPresponse($nick, $type, $message) {
-        echo("NOTICE " . $nick . " :\001" . $type . " " . $message . "\001\r\n");
+        //echo("NOTICE " . $nick . " :\001" . $type . " " . $message . "\001\r\n");
         fwrite($this->_fp, "NOTICE " . $nick . " :\001" . $type . " " . $message . "\001\r\n");
     }
 
@@ -221,24 +240,24 @@ class phpBot {
         } else {
             $str = "MODE " . $channel . "  " . $mode . "  " . $param;
         }
-        echo($str . "\r\n");
+        //echo($str . "\r\n");
         fwrite($this->_fp, $str . "\r\n");
     }
 
     public function loadModules() {
-        echo("hello");
+        //echo("hello");
         if (is_dir($this->moduledir)) {
             $dh = opendir($this->moduledir);
             if ($dh != false) {
                 while (($file = readdir($dh)) !== false) {
                     if (preg_match("/([\S]+).class.php$/i", $file, $match)) {
                         $str = file_get_contents($this->moduledir . $file);
-                        echo($this->moduledir . $file . "\n");
+                        //echo($this->moduledir . $file . "\n");
 
                         $flaf = eval($str);
                         $$match[1] = new $match[1]();
                         if (is_a($$match[1], "absModules")) {
-                            echo("yes\n");
+                            //echo("yes\n");
                         }
                     }
                 }
